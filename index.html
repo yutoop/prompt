@@ -1,604 +1,548 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PromptForge — AIプロンプト最適化</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@300;400;500&family=Space+Mono&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #f5f3ef;
-    --surface: #ffffff;
-    --surface2: #f0ede8;
-    --border: #ddd9d2;
-    --accent-gem: #0a8a5c;
-    --accent-gpt: #d4470e;
-    --accent-manus: #6b35d4;
-    --text: #1a1814;
-    --text-muted: #8a8580;
-    --glow-gem: rgba(10,138,92,0.1);
-    --glow-gpt: rgba(212,71,14,0.1);
-    --glow-manus: rgba(107,53,212,0.1);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Noto Sans JP', sans-serif;
-    font-weight: 300;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: radial-gradient(circle, rgba(10,138,92,0.07) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none; z-index: 0;
-  }
-  .orb { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; animation: drift 12s ease-in-out infinite alternate; }
-  .orb-1 { width: 500px; height: 500px; background: rgba(10,138,92,0.08); top: -150px; right: -150px; }
-  .orb-2 { width: 400px; height: 400px; background: rgba(212,71,14,0.07); bottom: -100px; left: -120px; animation-delay: -5s; }
-  @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(30px,20px) scale(1.1); } }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI PROMPT ATELIER - GRAND MASTER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700&family=Shippori+Mincho:wght@400;600;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Zen Kaku Gothic New"', 'sans-serif'],
+                        serif: ['"Shippori Mincho"', 'serif'],
+                    },
+                    colors: {
+                        brand: { 50: '#f5f3ff', 100: '#ede9fe', 500: '#8b5cf6', 600: '#7c3aed', 900: '#4c1d95' },
+                    },
+                    screens: {
+                        'xs': '480px',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F8FAFC; color: #1E293B; -webkit-font-smoothing: antialiased; }
+        
+        /* 隠しスクロールバーだがスクロール可能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  .container { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; position: relative; z-index: 1; }
+        /* カスタムスクロールバー (PC用) */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
 
-  header { text-align: center; margin-bottom: 48px; animation: fadeDown 0.7s ease both; }
-  @keyframes fadeDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
-  .logo {
-    font-family: 'Bebas Neue', cursive;
-    font-size: clamp(48px, 9vw, 80px);
-    letter-spacing: 6px;
-    background: linear-gradient(135deg, var(--accent-gem) 0%, #0077aa 50%, var(--accent-gpt) 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    line-height: 1; margin-bottom: 10px;
-  }
-  .tagline { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 4px; color: var(--text-muted); text-transform: uppercase; }
+        /* アニメーション */
+        .card-anim { transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .card-anim:active { transform: scale(0.98); }
+        .card-anim:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(124, 58, 237, 0.08); }
+        
+        .selected-card { 
+            background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 1px #7c3aed, 0 4px 12px rgba(124, 58, 237, 0.15);
+        }
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px; padding: 32px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-    animation: fadeUp 0.6s ease 0.15s both;
-  }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-
-  .section-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px; letter-spacing: 3px;
-    color: var(--text-muted); text-transform: uppercase;
-    margin-bottom: 10px;
-  }
-
-  textarea {
-    width: 100%; background: var(--surface2);
-    border: 1px solid var(--border); border-radius: 12px;
-    color: var(--text); font-family: 'Noto Sans JP', sans-serif;
-    font-size: 14px; font-weight: 300; line-height: 1.7;
-    padding: 14px; resize: vertical; min-height: 120px;
-    transition: border-color 0.3s, box-shadow 0.3s; outline: none;
-  }
-  textarea::placeholder { color: var(--text-muted); }
-  textarea:focus { border-color: var(--accent-gem); box-shadow: 0 0 0 3px var(--glow-gem); }
-
-  .target-row { display: flex; gap: 10px; margin: 20px 0; }
-  .target-btn {
-    flex: 1; padding: 12px 8px; border-radius: 12px;
-    border: 2px solid var(--border); background: var(--surface2);
-    color: var(--text-muted); cursor: pointer;
-    font-family: 'Bebas Neue', cursive; font-size: 20px; letter-spacing: 3px;
-    transition: all 0.25s;
-  }
-  .target-btn .sub { display: block; font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 2px; margin-top: 2px; }
-  .target-btn.gem { --c: var(--accent-gem); --glow: var(--glow-gem); }
-  .target-btn.gpt { --c: var(--accent-gpt); --glow: var(--glow-gpt); }
-  .target-btn.manus { --c: var(--accent-manus); --glow: var(--glow-manus); }
-  .target-btn.active { border-color: var(--c); color: var(--c); box-shadow: 0 0 16px var(--glow), inset 0 0 16px var(--glow); background: white; }
-  .target-btn:hover:not(.active) { border-color: color-mix(in srgb, var(--c) 50%, transparent); color: color-mix(in srgb, var(--c) 70%, var(--text)); }
-
-  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-
-  .detail-toggle {
-    display: flex; align-items: center; gap: 10px;
-    cursor: pointer; user-select: none;
-    font-family: 'Space Mono', monospace; font-size: 10px;
-    letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase;
-    transition: color 0.2s;
-  }
-  .detail-toggle:hover { color: var(--accent-gem); }
-  .toggle-arrow {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--surface2); border: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 9px; transition: transform 0.3s, background 0.2s;
-    flex-shrink: 0;
-  }
-  .detail-toggle.open .toggle-arrow { transform: rotate(180deg); background: var(--accent-gem); color: white; border-color: var(--accent-gem); }
-
-  .detail-panel {
-    max-height: 0; overflow: hidden;
-    transition: max-height 0.45s ease, opacity 0.3s ease;
-    opacity: 0;
-  }
-  .detail-panel.open { max-height: 1400px; opacity: 1; }
-  .detail-inner { padding-top: 22px; display: flex; flex-direction: column; gap: 20px; }
-
-  .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 560px) { .option-grid { grid-template-columns: 1fr; } }
-
-  .option-group { display: flex; flex-direction: column; gap: 8px; }
-  .option-group.full { grid-column: 1 / -1; }
-
-  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip {
-    padding: 6px 12px; border-radius: 30px;
-    border: 1px solid var(--border); background: var(--surface2);
-    color: var(--text-muted); cursor: pointer;
-    font-family: 'Noto Sans JP', sans-serif; font-size: 12px; font-weight: 300;
-    transition: all 0.2s; white-space: nowrap;
-  }
-  .chip:hover { border-color: var(--accent-gem); color: var(--accent-gem); }
-  .chip.active { border-color: var(--accent-gem); color: var(--accent-gem); background: var(--glow-gem); font-weight: 500; }
-
-  .opt-input {
-    width: 100%; background: var(--surface2);
-    border: 1px solid var(--border); border-radius: 10px;
-    color: var(--text); font-family: 'Noto Sans JP', sans-serif;
-    font-size: 13px; font-weight: 300; padding: 10px 12px;
-    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .opt-input:focus { border-color: var(--accent-gem); box-shadow: 0 0 0 2px var(--glow-gem); }
-  .opt-input::placeholder { color: var(--text-muted); font-size: 12px; }
-  select.opt-input {
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8580'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 12px center;
-    padding-right: 30px; cursor: pointer;
-  }
-
-  .generate-btn {
-    width: 100%; padding: 17px; border-radius: 14px; border: none;
-    background: linear-gradient(135deg, var(--accent-gem), #0077aa);
-    color: #fff; font-family: 'Bebas Neue', cursive;
-    font-size: 20px; letter-spacing: 4px; cursor: pointer;
-    transition: all 0.3s; margin-top: 4px;
-  }
-  .generate-btn.gpt-mode { background: linear-gradient(135deg, var(--accent-gpt), #e07020); }
-  .generate-btn.manus-mode { background: linear-gradient(135deg, var(--accent-manus), #9b6be0); }
-  .generate-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(10,138,92,0.25); }
-  .generate-btn.gpt-mode:hover:not(:disabled) { box-shadow: 0 8px 30px rgba(212,71,14,0.25); }
-  .generate-btn.manus-mode:hover:not(:disabled) { box-shadow: 0 8px 30px rgba(107,53,212,0.25); }
-  .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .loading-bar {
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent-gem), #0077aa, var(--accent-gem));
-    background-size: 200% 100%; border-radius: 2px; margin-top: 14px;
-    display: none; animation: shimmer 1.2s linear infinite;
-  }
-  .loading-bar.active { display: block; }
-  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-
-  .error-msg {
-    background: rgba(255,80,80,0.1); border: 1px solid rgba(255,80,80,0.3);
-    border-radius: 10px; padding: 12px; color: #e05050;
-    font-size: 13px; margin-top: 12px; display: none;
-    font-family: 'Space Mono', monospace;
-  }
-  .error-msg.visible { display: block; }
-
-  .output-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 20px; padding: 32px;
-    display: none; animation: fadeUp 0.5s ease both;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-  }
-  .output-card.visible { display: block; }
-  .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .ai-badge { font-family: 'Bebas Neue', cursive; font-size: 15px; letter-spacing: 3px; padding: 5px 14px; border-radius: 30px; }
-  .ai-badge.gem { background: var(--glow-gem); color: var(--accent-gem); border: 1px solid var(--accent-gem); }
-  .ai-badge.gpt { background: var(--glow-gpt); color: var(--accent-gpt); border: 1px solid var(--accent-gpt); }
-  .ai-badge.manus { background: var(--glow-manus); color: var(--accent-manus); border: 1px solid var(--accent-manus); }
-  .copy-btn {
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text-muted); font-family: 'Space Mono', monospace;
-    font-size: 10px; letter-spacing: 2px; padding: 7px 14px;
-    border-radius: 8px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
-  }
-  .copy-btn:hover { border-color: var(--accent-gem); color: var(--accent-gem); }
-  .output-text {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 18px; font-size: 14px;
-    line-height: 1.8; color: var(--text); white-space: pre-wrap; min-height: 100px;
-  }
-</style>
+        /* モバイル用調整 */
+        .mobile-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
 </head>
-<body>
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
+<body class="h-screen flex flex-col overflow-hidden text-sm md:text-base">
 
-<div class="container">
-  <header>
-    <div class="logo">PromptForge</div>
-    <div class="tagline">AI プロンプト最適化エンジン  ·  Powered by OpenRouter</div>
-  </header>
+    <div id="app" class="flex flex-col h-full relative">
+        
+        <!-- ヘッダー -->
+        <header class="bg-white/95 backdrop-blur border-b border-slate-200 z-50 flex-shrink-0">
+            <div class="max-w-screen-2xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex flex-col">
+                    <h1 class="font-serif font-bold text-xl md:text-2xl text-slate-900 tracking-tight flex items-center gap-2">
+                        <span class="text-brand-600">✦</span> ATELIER
+                    </h1>
+                    <p class="text-[10px] md:text-xs text-slate-400 font-bold tracking-widest uppercase">Grand Master Edition</p>
+                </div>
+                
+                <!-- モデル選択 (PC) -->
+                <div class="hidden md:flex bg-slate-100 rounded-lg p-1 gap-1">
+                    <button v-for="m in models" :key="m.id" @click="config.model = m.id"
+                        :class="['px-3 py-1.5 rounded-md text-xs font-bold transition-all', 
+                        config.model === m.id ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
+                        {{ m.name }}
+                    </button>
+                </div>
 
-  <div class="card">
-    <div class="section-label">INPUT — 元のプロンプト</div>
-    <textarea id="inputPrompt" placeholder="ここにプロンプトを入力してください。例：「Pythonで画像を圧縮するコードを書いて」など"></textarea>
+                <!-- 生成アクション (PC) -->
+                <button @click="generate" class="hidden md:flex bg-slate-900 hover:bg-black text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg items-center gap-2 transition-transform active:scale-95">
+                    <span>生成 (Build)</span>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                </button>
 
-    <div class="section-label" style="margin-top:22px;">TARGET — 最適化先のAI</div>
-    <div class="target-row">
-      <button class="target-btn gem active" onclick="selectTarget('gemini', this)">
-        Gemini<span class="sub">Google AI</span>
-      </button>
-      <button class="target-btn gpt" onclick="selectTarget('chatgpt', this)">
-        ChatGPT<span class="sub">OpenAI</span>
-      </button>
-      <button class="target-btn manus" onclick="selectTarget('manus', this)">
-        Manus<span class="sub">Manus AI</span>
-      </button>
+                <!-- モバイル用モデル切り替えボタン -->
+                <button @click="showMobileModelSelect = !showMobileModelSelect" class="md:hidden p-2 text-slate-600 bg-slate-100 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </button>
+            </div>
+            
+            <!-- モバイル用モデル選択メニュー -->
+            <div v-if="showMobileModelSelect" class="md:hidden border-t border-slate-100 bg-slate-50 p-2 flex gap-2 overflow-x-auto no-scrollbar">
+                <button v-for="m in models" :key="m.id" @click="config.model = m.id; showMobileModelSelect = false"
+                    :class="['flex-shrink-0 px-3 py-2 rounded-lg text-xs font-bold border', 
+                    config.model === m.id ? 'bg-white border-brand-500 text-brand-600' : 'bg-transparent border-transparent text-slate-500']">
+                    {{ m.name }}
+                </button>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ (レスポンシブグリッド) -->
+        <div class="flex-1 overflow-hidden flex flex-col md:flex-row">
+            
+            <!-- 左カラム: 入力と選択 (スクロール) -->
+            <div class="flex-1 overflow-y-auto bg-[#F8FAFC] pb-24 md:pb-10">
+                <div class="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
+
+                    <!-- 1. 依頼内容 -->
+                    <section>
+                        <div class="flex justify-between items-end mb-3">
+                            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <span class="w-1.5 h-4 bg-brand-500 rounded-sm"></span> 01. Request
+                            </h2>
+                            <button @click="toggleContext" class="text-xs text-brand-600 font-bold hover:underline">
+                                {{ showContext ? '− 詳細を隠す' : '＋ 詳細・背景を追加' }}
+                            </button>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 focus-within:ring-2 focus-within:ring-brand-100 transition-all">
+                            <textarea v-model="input.task" placeholder="ここに実現したいことを入力してください...&#10;例：最新のAIトレンドを解説する記事を書いて。ターゲットは非エンジニア。" 
+                                class="w-full h-24 bg-transparent border-none text-base text-slate-800 placeholder-slate-300 focus:ring-0 resize-none leading-relaxed"></textarea>
+                            
+                            <div v-if="showContext" class="mt-4 pt-4 border-t border-slate-100 animate-fade">
+                                <label class="text-[10px] text-slate-400 font-bold mb-1 block">背景情報・参考データ</label>
+                                <textarea v-model="input.context" placeholder="参考テキストや前提条件を入力..."
+                                    class="w-full h-20 bg-slate-50 rounded-lg p-3 text-sm border-none focus:ring-0 resize-none"></textarea>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 2. 詳細設定 (タブ & 検索) -->
+                    <section>
+                        <!-- タブメニュー -->
+                        <div class="sticky top-0 bg-[#F8FAFC]/95 backdrop-blur z-20 py-2 border-b border-slate-200 mb-4 -mx-4 px-4 md:mx-0 md:px-0">
+                            <div class="flex overflow-x-auto no-scrollbar gap-6">
+                                <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id"
+                                    :class="['text-sm font-bold whitespace-nowrap pb-2 transition-colors relative flex items-center gap-2', 
+                                    currentTab === tab.id ? 'text-slate-900' : 'text-slate-400']">
+                                    <span>{{ tab.icon }}</span> {{ tab.name }}
+                                    <span v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-[2px] bg-brand-600 rounded-full"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 検索バー -->
+                        <div class="relative mb-4">
+                            <input type="text" v-model="searchQuery" placeholder="選択肢を検索 (例: Python, 論文, 表)..." 
+                                class="w-full bg-white border border-slate-200 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100">
+                            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </div>
+
+                        <!-- コンテンツエリア -->
+                        <div class="min-h-[300px]">
+                            
+                            <!-- 役割 (Persona) -->
+                            <div v-if="currentTab === 'persona'" class="animate-fade">
+                                <div v-for="(group, groupName) in filteredRoles" :key="groupName" class="mb-6">
+                                    <h3 class="text-xs font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded mb-3">{{ groupName }}</h3>
+                                    <div class="grid grid-cols-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                        <div v-for="role in group" :key="role.val" @click="config.role = role.val"
+                                            :class="['card-anim p-3 rounded-xl cursor-pointer border bg-white relative flex flex-col h-full justify-between', 
+                                            config.role === role.val ? 'selected-card' : 'border-slate-100']">
+                                            <div>
+                                                <div class="text-xl mb-1">{{ role.icon }}</div>
+                                                <div class="font-bold text-xs md:text-sm text-slate-800 leading-tight">{{ role.label }}</div>
+                                            </div>
+                                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">{{ role.desc }}</div>
+                                            <div v-if="config.role === role.val" class="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="Object.keys(filteredRoles).length === 0" class="text-center text-slate-400 py-10">
+                                    該当する役割が見つかりません
+                                </div>
+                            </div>
+
+                            <!-- 思考法 (Thinking) -->
+                            <div v-if="currentTab === 'thinking'" class="animate-fade">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div v-for="fw in filteredFrameworks" :key="fw.val" @click="config.framework = fw.val"
+                                        :class="['card-anim p-4 rounded-xl cursor-pointer border bg-white relative', 
+                                        config.framework === fw.val ? 'selected-card' : 'border-slate-100']">
+                                        <div class="font-bold text-sm text-slate-800 mb-1">{{ fw.label }}</div>
+                                        <div class="text-xs text-slate-500 leading-relaxed">{{ fw.desc }}</div>
+                                        <div v-if="config.framework === fw.val" class="absolute top-4 right-4 text-brand-600">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- トーン (Tone) -->
+                            <div v-if="currentTab === 'tone'" class="animate-fade">
+                                <div class="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 gap-3">
+                                    <div v-for="t in filteredTones" :key="t.val" @click="config.tone = t.val"
+                                        :class="['card-anim p-3 rounded-xl cursor-pointer border bg-white text-center', 
+                                        config.tone === t.val ? 'selected-card' : 'border-slate-100']">
+                                        <div class="text-2xl mb-1">{{ t.icon }}</div>
+                                        <div class="font-bold text-xs text-slate-800">{{ t.label }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 形式 (Format) -->
+                            <div v-if="currentTab === 'format'" class="animate-fade">
+                                <div class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div v-for="fmt in filteredFormats" :key="fmt.val" @click="config.format = fmt.val"
+                                        :class="['card-anim p-3 rounded-xl cursor-pointer border bg-white flex items-center gap-3', 
+                                        config.format === fmt.val ? 'selected-card' : 'border-slate-100']">
+                                        <div class="bg-slate-50 p-2 rounded text-lg">{{ fmt.icon }}</div>
+                                        <div>
+                                            <div class="font-bold text-xs text-slate-800">{{ fmt.label }}</div>
+                                            <div class="text-[10px] text-slate-500">{{ fmt.desc }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 調整 (Tuning) -->
+                            <div v-if="currentTab === 'tuning'" class="animate-fade">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div v-for="opt in tuningOptions" :key="opt.key" @click="constraints[opt.key] = !constraints[opt.key]"
+                                        :class="['card-anim p-4 rounded-xl cursor-pointer border bg-white flex justify-between items-center', 
+                                        constraints[opt.key] ? 'selected-card' : 'border-slate-100']">
+                                        <div>
+                                            <div class="font-bold text-sm text-slate-800">{{ opt.label }}</div>
+                                            <div class="text-xs text-slate-500 mt-0.5">{{ opt.desc }}</div>
+                                        </div>
+                                        <div :class="['w-11 h-6 rounded-full flex items-center px-1 transition-colors duration-300', 
+                                            constraints[opt.key] ? 'bg-brand-500' : 'bg-slate-200']">
+                                            <div :class="['w-4 h-4 bg-white rounded-full shadow transition-transform duration-300', constraints[opt.key] ? 'translate-x-5' : 'translate-x-0']"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 右カラム: プレビュー (PC: 常時表示, Mobile: 下部に固定 or シート) -->
+            <div class="w-full md:w-[350px] lg:w-[400px] bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shadow-2xl z-30 md:relative">
+                
+                <!-- PC用ヘッダー -->
+                <div class="hidden md:flex p-4 border-b border-slate-100 justify-between items-center bg-white">
+                    <h3 class="font-bold text-xs text-slate-500 uppercase tracking-widest">Output Preview</h3>
+                    <button @click="copy" class="text-xs font-bold text-brand-600 hover:bg-brand-50 px-3 py-1 rounded-full transition-colors">
+                        {{ copied ? 'コピー完了！' : 'コピーする' }}
+                    </button>
+                </div>
+
+                <!-- プレビューエリア -->
+                <div class="flex-1 relative bg-slate-50">
+                    <textarea readonly v-model="output"
+                        class="w-full h-full p-6 bg-transparent text-xs font-mono text-slate-600 leading-relaxed resize-none border-none outline-none"
+                        placeholder="// ここに生成されたプロンプトが表示されます..."></textarea>
+                    
+                    <!-- モバイル用フローティングアクションエリア -->
+                    <div class="md:hidden absolute bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur border-t border-slate-200 mobile-safe-bottom flex gap-3">
+                        <button @click="generate" class="flex-1 bg-slate-900 text-white py-3 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-transform">
+                            生成する
+                        </button>
+                        <button @click="copy" class="flex-1 bg-brand-600 text-white py-3 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-transform">
+                            {{ copied ? '完了!' : 'コピー' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <hr class="divider">
+    <script>
+        const { createApp, ref, reactive, computed } = Vue;
 
-    <div class="detail-toggle" id="detailToggle" onclick="toggleDetail()">
-      <div class="toggle-arrow">▼</div>
-      詳細設定 — トーン・形式・制約などを指定する
-    </div>
+        createApp({
+            setup() {
+                const showContext = ref(false);
+                const showMobileModelSelect = ref(false);
+                const copied = ref(false);
+                const currentTab = ref('persona');
+                const searchQuery = ref('');
+                const output = ref('');
+                const input = reactive({ task: '', context: '' });
+                const config = reactive({ model: 'gpt', role: 'auto', framework: 'auto', format: 'auto', tone: 'auto' });
+                const constraints = reactive({});
 
-    <div class="detail-panel" id="detailPanel">
-      <div class="detail-inner">
+                const models = [
+                    { id: 'gpt', name: 'ChatGPT' },
+                    { id: 'gemini', name: 'Gemini' },
+                    { id: 'manus', name: 'Manus' },
+                    { id: 'deepseek', name: 'DeepSeek' }
+                ];
 
-        <div class="option-grid">
-          <div class="option-group">
-            <div class="section-label">用途・目的</div>
-            <select class="opt-input" id="useCaseSelect">
-              <option value="">指定しない</option>
-              <option value="コード生成・プログラミング">コード生成・プログラミング</option>
-              <option value="文章作成・ライティング">文章作成・ライティング</option>
-              <option value="分析・調査・リサーチ">分析・調査・リサーチ</option>
-              <option value="翻訳・言語処理">翻訳・言語処理</option>
-              <option value="アイデア出し・ブレスト">アイデア出し・ブレスト</option>
-              <option value="要約・整理">要約・整理</option>
-              <option value="画像生成プロンプト作成">画像生成プロンプト作成</option>
-              <option value="教育・解説">教育・解説</option>
-              <option value="ビジネス・業務">ビジネス・業務</option>
-              <option value="創作・フィクション">創作・フィクション</option>
-              <option value="データ分析・数値処理">データ分析・数値処理</option>
-              <option value="SEO・マーケティング">SEO・マーケティング</option>
-            </select>
-          </div>
-          <div class="option-group">
-            <div class="section-label">出力言語</div>
-            <select class="opt-input" id="langSelect">
-              <option value="日本語">日本語</option>
-              <option value="英語">英語</option>
-              <option value="日本語と英語の両方（バイリンガル）">日本語＋英語（バイリンガル）</option>
-              <option value="指定しない">指定しない（自動）</option>
-            </select>
-          </div>
-        </div>
+                const tabs = [
+                    { id: 'persona', name: '役割', icon: '👤' },
+                    { id: 'thinking', name: '思考', icon: '🧠' },
+                    { id: 'tone', name: '口調', icon: '🗣️' },
+                    { id: 'format', name: '形式', icon: '📝' },
+                    { id: 'tuning', name: '調整', icon: '⚙️' }
+                ];
 
-        <div class="option-group">
-          <div class="section-label">口調・トーン</div>
-          <div class="chip-row" id="toneChips">
-            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'tone')">指定しない</div>
-            <div class="chip" data-val="プロフェッショナル・丁寧" onclick="selectChip(this,'tone')">プロフェッショナル</div>
-            <div class="chip" data-val="カジュアル・親しみやすい" onclick="selectChip(this,'tone')">カジュアル</div>
-            <div class="chip" data-val="学術的・論理的" onclick="selectChip(this,'tone')">学術的</div>
-            <div class="chip" data-val="簡潔・要点のみ" onclick="selectChip(this,'tone')">簡潔</div>
-            <div class="chip" data-val="創造的・ユニーク" onclick="selectChip(this,'tone')">創造的</div>
-            <div class="chip" data-val="やさしく・初心者向け" onclick="selectChip(this,'tone')">初心者向け</div>
-            <div class="chip" data-val="厳格・批判的" onclick="selectChip(this,'tone')">厳格・批判的</div>
-          </div>
-        </div>
+                // ==========================================
+                // MASSIVE DATASET (8x Expanded)
+                // ==========================================
 
-        <div class="option-group">
-          <div class="section-label">出力形式</div>
-          <div class="chip-row" id="formatChips">
-            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'format')">指定しない</div>
-            <div class="chip" data-val="自由な文章形式" onclick="selectChip(this,'format')">自由な文章</div>
-            <div class="chip" data-val="箇条書き（•）" onclick="selectChip(this,'format')">箇条書き</div>
-            <div class="chip" data-val="番号付きリスト" onclick="selectChip(this,'format')">番号リスト</div>
-            <div class="chip" data-val="Markdown形式（見出し・太字・リスト活用）" onclick="selectChip(this,'format')">Markdown</div>
-            <div class="chip" data-val="JSON形式" onclick="selectChip(this,'format')">JSON</div>
-            <div class="chip" data-val="コードブロック付き" onclick="selectChip(this,'format')">コードブロック</div>
-            <div class="chip" data-val="表（テーブル）形式" onclick="selectChip(this,'format')">テーブル</div>
-            <div class="chip" data-val="Q&A形式" onclick="selectChip(this,'format')">Q&A形式</div>
-          </div>
-        </div>
+                const roleData = {
+                    "IT・開発・技術": [
+                        { val: "architect", label: "ソフトウェアアーキテクト", icon: "🏗️", desc: "堅牢性・保守性重視" },
+                        { val: "frontend", label: "フロントエンドの達人", icon: "🎨", desc: "React/Vue/CSS設計" },
+                        { val: "backend", label: "バックエンドの達人", icon: "⚙️", desc: "Go/Rust/API設計" },
+                        { val: "fullstack", label: "フルスタックエンジニア", icon: "🛠️", desc: "全レイヤー対応" },
+                        { val: "mobile_dev", label: "モバイルアプリ開発者", icon: "📱", desc: "iOS/Android/Flutter" },
+                        { val: "game_dev", label: "ゲーム開発者", icon: "🎮", desc: "Unity/Unreal/UX" },
+                        { val: "datasci", label: "データサイエンティスト", icon: "⚗️", desc: "統計・Python・分析" },
+                        { val: "ml_eng", label: "機械学習エンジニア", icon: "🤖", desc: "モデル構築・学習" },
+                        { val: "devops", label: "DevOpsエンジニア", icon: "♾️", desc: "CI/CD・インフラ" },
+                        { val: "security", label: "セキュリティ専門家", icon: "🛡️", desc: "脆弱性診断・防御" },
+                        { val: "db_admin", label: "DB管理者", icon: "🗄️", desc: "SQL最適化・正規化" },
+                        { val: "qa", label: "QAエンジニア", icon: "✅", desc: "テスト自動化・品質" },
+                        { val: "network", label: "ネットワークエンジニア", icon: "🌐", desc: "TCP/IP・クラウド" },
+                        { val: "legacy", label: "レガシーコード専門家", icon: "🏛️", desc: "リファクタリング" }
+                    ],
+                    "ビジネス・経営": [
+                        { val: "ceo", label: "スタートアップCEO", icon: "🚀", desc: "ビジョン・意思決定" },
+                        { val: "cfo", label: "CFO (最高財務責任者)", icon: "💰", desc: "財務戦略・コスト" },
+                        { val: "mckinsey", label: "戦略コンサルタント", icon: "💼", desc: "MECE・ロジカル" },
+                        { val: "pm", label: "プロダクトマネージャー", icon: "🧭", desc: "優先順位・ロードマップ" },
+                        { val: "marketer", label: "Webマーケター", icon: "📈", desc: "SEO・広告・CVR" },
+                        { val: "sales", label: "トップセールス", icon: "🤝", desc: "交渉・クロージング" },
+                        { val: "hr", label: "人事マネージャー", icon: "👥", desc: "採用・組織開発" },
+                        { val: "legal", label: "企業法務", icon: "⚖️", desc: "契約・コンプライアンス" },
+                        { val: "acc", label: "公認会計士", icon: "🧮", desc: "会計・税務・監査" },
+                        { val: "investor", label: "ベンチャーキャピタリスト", icon: "🦄", desc: "投資判断・市場性" }
+                    ],
+                    "クリエイティブ・制作": [
+                        { val: "copywriter", label: "コピーライター", icon: "✍️", desc: "刺さる言葉選び" },
+                        { val: "novelist", label: "小説家", icon: "📖", desc: "物語・伏線・描写" },
+                        { val: "screenwriter", label: "脚本家", icon: "🎬", desc: "セリフ・構成" },
+                        { val: "ux_writer", label: "UXライター", icon: "📱", desc: "マイクロコピー" },
+                        { val: "seo_writer", label: "SEOライター", icon: "🔍", desc: "検索順位・KW" },
+                        { val: "editor", label: "敏腕編集者", icon: "📝", desc: "校正・推敲・企画" },
+                        { val: "designer", label: "UI/UXデザイナー", icon: "✨", desc: "視認性・体験設計" },
+                        { val: "art_dir", label: "アートディレクター", icon: "🎨", desc: "世界観・統一感" },
+                        { val: "youtuber", label: "人気YouTuber", icon: "▶️", desc: "企画・台本・フック" },
+                        { val: "musician", label: "作曲家", icon: "🎵", desc: "理論・感情表現" }
+                    ],
+                    "アカデミック・専門職": [
+                        { val: "professor", label: "大学教授", icon: "🎓", desc: "学術的・厳密" },
+                        { val: "researcher", label: "研究者", icon: "🔬", desc: "エビデンス・論文" },
+                        { val: "doctor", label: "医師", icon: "🩺", desc: "医学的根拠・診断" },
+                        { val: "lawyer", label: "弁護士", icon: "⚖️", desc: "論理・判例・権利" },
+                        { val: "psychologist", label: "心理カウンセラー", icon: "🧠", desc: "傾聴・共感・心理" },
+                        { val: "historian", label: "歴史家", icon: "📜", desc: "史実・背景・文脈" },
+                        { val: "philosopher", label: "哲学者", icon: "🤔", desc: "本質・批判的思考" },
+                        { val: "math_teacher", label: "数学教師", icon: "📐", desc: "論理的・証明" },
+                        { val: "translator", label: "プロ翻訳家", icon: "🗣️", desc: "ニュアンス・文化" }
+                    ],
+                    "ライフスタイル・その他": [
+                        { val: "chef", label: "三つ星シェフ", icon: "👨‍🍳", desc: "レシピ・味覚・工程" },
+                        { val: "trainer", label: "パーソナルトレーナー", icon: "💪", desc: "筋トレ・栄養・健康" },
+                        { val: "travel", label: "トラベルガイド", icon: "✈️", desc: "観光・プランニング" },
+                        { val: "gamer", label: "プロゲーマー", icon: "🎮", desc: "攻略・効率・メタ" },
+                        { val: "parent", label: "ベテランママ/パパ", icon: "👶", desc: "育児・家事・共感" },
+                        { val: "comedian", label: "お笑い芸人", icon: "🤣", desc: "ユーモア・オチ" },
+                        { val: "fortune", label: "占い師", icon: "🔮", desc: "運勢・アドバイス" },
+                        { val: "cat", label: "猫", icon: "🐱", desc: "気まぐれ・可愛い" }
+                    ]
+                };
 
-        <div class="option-group">
-          <div class="section-label">出力の長さ</div>
-          <div class="chip-row" id="lengthChips">
-            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'length')">指定しない</div>
-            <div class="chip" data-val="できるだけ短く・要点のみ（3文以内）" onclick="selectChip(this,'length')">短く簡潔</div>
-            <div class="chip" data-val="標準的な長さ（200〜400文字程度）" onclick="selectChip(this,'length')">標準</div>
-            <div class="chip" data-val="詳細・網羅的に（制限なし）" onclick="selectChip(this,'length')">詳細に</div>
-            <div class="chip" data-val="ステップごとに分けて詳しく説明" onclick="selectChip(this,'length')">ステップ解説</div>
-          </div>
-        </div>
+                const frameworks = [
+                    { val: "step", label: "ステップ・バイ・ステップ", desc: "手順を分解し、着実に実行する" },
+                    { val: "cot", label: "思考の連鎖 (Chain of Thought)", desc: "思考過程を明示し、論理飛躍を防ぐ" },
+                    { val: "tot", label: "思考の木 (Tree of Thoughts)", desc: "複数の可能性を分岐させて検討する" },
+                    { val: "first_principles", label: "第一原理思考", desc: "常識を捨て、根本原理から考える" },
+                    { val: "swot", label: "SWOT分析", desc: "強み・弱み・機会・脅威" },
+                    { val: "pestle", label: "PESTLE分析", desc: "政治・経済・社会・技術・法・環境" },
+                    { val: "3c", label: "3C分析", desc: "市場・競合・自社" },
+                    { val: "4p", label: "4P分析 (マーケティング)", desc: "製品・価格・流通・販促" },
+                    { val: "aida", label: "AIDAの法則", desc: "注意・関心・欲求・行動" },
+                    { val: "pasona", label: "PASONAの法則", desc: "問題・扇動・解決・提案・行動" },
+                    { val: "prep", label: "PREP法", desc: "結論・理由・具体例・結論" },
+                    { val: "star", label: "STAR法", desc: "状況・課題・行動・結果" },
+                    { val: "scamper", label: "SCAMPER法", desc: "置換・結合・適応・修正..." },
+                    { val: "six_hats", label: "6つの帽子思考法", desc: "客観・感情・悲観・楽観・創造・管理" },
+                    { val: "eli5", label: "ELI5 (5歳児向け)", desc: "専門用語を使わず極めて噛み砕く" },
+                    { val: "feynman", label: "ファインマン・テクニック", desc: "教えるつもりでシンプルに説明" },
+                    { val: "socratic", label: "ソクラテス式問答法", desc: "質問を重ねて本質を導く" },
+                    { val: "critic", label: "悪魔の代弁者", desc: "あえて反論し死角を見つける" },
+                    { val: "pros_cons", label: "メリット・デメリット比較", desc: "長所と短所を列挙して比較" },
+                    { val: "pareto", label: "パレートの法則 (80:20)", desc: "重要な2割に集中する" },
+                    { val: "pdca", label: "PDCAサイクル", desc: "計画・実行・評価・改善" },
+                    { val: "ooda", label: "OODAループ", desc: "観察・情勢判断・決定・行動" }
+                ];
 
-        <div class="option-group">
-          <div class="section-label">思考・推論スタイル</div>
-          <div class="chip-row" id="thinkChips">
-            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'think')">指定しない</div>
-            <div class="chip" data-val="まず結論を述べてから理由を説明する（結論先行）" onclick="selectChip(this,'think')">結論先行</div>
-            <div class="chip" data-val="Step by Stepで順番に考える（Chain of Thought）" onclick="selectChip(this,'think')">Step by Step</div>
-            <div class="chip" data-val="複数の視点・観点から検討してから回答する" onclick="selectChip(this,'think')">多角的検討</div>
-            <div class="chip" data-val="具体的な例・事例を必ず含める" onclick="selectChip(this,'think')">事例を含む</div>
-            <div class="chip" data-val="メリット・デメリットを比較して提示する" onclick="selectChip(this,'think')">メリデメ比較</div>
-          </div>
-        </div>
+                const tones = [
+                    { val: "professional", label: "プロフェッショナル", icon: "👔" },
+                    { val: "friendly", label: "フレンドリー", icon: "😊" },
+                    { val: "confident", label: "自信満々", icon: "🦁" },
+                    { val: "empathetic", label: "共感的・優しく", icon: "❤️" },
+                    { val: "witty", label: "ユーモア・ウィット", icon: "😉" },
+                    { val: "academic", label: "学術的・論文調", icon: "🎓" },
+                    { val: "urgent", label: "簡潔・緊急", icon: "⚡" },
+                    { val: "storyteller", label: "物語調", icon: "📚" },
+                    { val: "sarcastic", label: "皮肉・毒舌", icon: "😈" },
+                    { val: "encouraging", label: "励まし・コーチング", icon: "📣" },
+                    { val: "objective", label: "客観的・ドライ", icon: "😐" },
+                    { val: "poetic", label: "詩的・情緒的", icon: "🌸" },
+                    { val: "salesy", label: "セールスライティング", icon: "🔥" },
+                    { val: "childish", label: "子供向け", icon: "🎈" },
+                    { val: "formal", label: "極めて礼儀正しく", icon: "🙇" }
+                ];
 
-        <div class="option-grid">
-          <div class="option-group">
-            <div class="section-label">AIに演じさせる役割</div>
-            <input type="text" class="opt-input" id="roleInput" placeholder="例：シニアエンジニア、マーケター、医師">
-          </div>
-          <div class="option-group">
-            <div class="section-label">対象読者・ターゲット</div>
-            <input type="text" class="opt-input" id="audienceInput" placeholder="例：初心者、経営者、小学生">
-          </div>
-        </div>
+                const formats = [
+                    { val: "markdown", label: "Markdownレポート", icon: "📄", desc: "見出し付き標準文書" },
+                    { val: "code", label: "コードブロックのみ", icon: "💻", desc: "解説なしコードのみ" },
+                    { val: "json", label: "JSONデータ", icon: "{}", desc: "システム連携用" },
+                    { val: "csv", label: "CSV形式", icon: "📑", desc: "Excel用データ" },
+                    { val: "table", label: "比較テーブル", icon: "📊", desc: "表形式で整理" },
+                    { val: "checklist", label: "チェックリスト", icon: "✅", desc: "実行項目一覧" },
+                    { val: "bullet", label: "箇条書きリスト", icon: "•", desc: "要点のみ列挙" },
+                    { val: "email", label: "ビジネスメール", icon: "✉️", desc: "送信可能な文面" },
+                    { val: "twitter", label: "Twitter/Xスレッド", icon: "🐦", desc: "短文連投形式" },
+                    { val: "blog", label: "ブログ記事構成", icon: "📝", desc: "タイトル・見出し・本文" },
+                    { val: "mermaid_flow", label: "Mermaidフロー図", icon: "↪️", desc: "フローチャート" },
+                    { val: "mermaid_seq", label: "Mermaidシーケンス", icon: "⬇️", desc: "シーケンス図" },
+                    { val: "mermaid_gantt", label: "Mermaidガント", icon: "📅", desc: "工程表" },
+                    { val: "ppt_outline", label: "プレゼン構成案", icon: "📽️", desc: "スライド枚数ごと" },
+                    { val: "quiz", label: "クイズ・問題形式", icon: "❓", desc: "問題と解答" }
+                ];
 
-        <div class="option-group full">
-          <div class="section-label">制約・禁止事項</div>
-          <input type="text" class="opt-input" id="constraintInput" placeholder="例：専門用語を使わない、英語を含めない、箇条書きにしない">
-        </div>
+                const tuningOptions = [
+                    { key: "no_apology", label: "謝罪禁止", desc: "「申し訳ありません」等の前置きをカット" },
+                    { key: "no_hallucination", label: "事実厳守 (推測禁止)", desc: "嘘を防ぎ、確実な情報のみ記述" },
+                    { key: "step_reasoning", label: "推論プロセスの開示", desc: "結論に至る思考を表示" },
+                    { key: "confidence", label: "自信度スコア表示", desc: "回答の確信度を%で表示" },
+                    { key: "critique", label: "自己批判を含める", desc: "回答の欠点や限界を指摘" },
+                    { key: "sources", label: "出典・URLの明記", desc: "情報源を可能な限り提示" },
+                    { key: "web_search", label: "Web検索を行う", desc: "ネット上の最新情報を取得" },
+                    { key: "ask_questions", label: "不明点は質問する", desc: "勝手に推測せず確認する" },
+                    { key: "english_output", label: "英語で出力", desc: "回答のみ英語で行う" },
+                    { key: "no_filler", label: "フィラー(相槌)禁止", desc: "「はい、これです」等を削除" },
+                    { key: "bold_key", label: "重要語句を太字化", desc: "キーポイントを強調表示" },
+                    { key: "example_driven", label: "具体例を多用", desc: "抽象論より実例を優先" }
+                ];
 
-        <div class="option-group full">
-          <div class="section-label">背景情報・コンテキスト</div>
-          <input type="text" class="opt-input" id="contextInput" placeholder="例：Webアプリ開発プロジェクト向け、初回の顧客提案書として使う">
-        </div>
+                // 制約の初期化
+                tuningOptions.forEach(o => constraints[o.key] = false);
 
-        <div class="option-group full">
-          <div class="section-label">期待する出力例（Few-shot）</div>
-          <textarea class="opt-input" id="exampleInput" style="min-height:70px; resize:vertical;" placeholder="AIに期待する出力の例を書くと、精度が上がります。例：「出力例：1. はじめに〜」"></textarea>
-        </div>
+                // --- COMPUTED PROPERTIES FOR FILTERING ---
+                
+                const filterItems = (items, query) => {
+                    if (!query) return items;
+                    const q = query.toLowerCase();
+                    if (Array.isArray(items)) {
+                        return items.filter(i => i.label.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
+                    }
+                    // For grouped objects (Roles)
+                    const result = {};
+                    Object.keys(items).forEach(key => {
+                        const filtered = items[key].filter(i => i.label.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
+                        if (filtered.length > 0) result[key] = filtered;
+                    });
+                    return result;
+                };
 
-      </div>
-    </div>
+                const filteredRoles = computed(() => filterItems(roleData, searchQuery.value));
+                const filteredFrameworks = computed(() => filterItems(frameworks, searchQuery.value));
+                const filteredTones = computed(() => filterItems(tones, searchQuery.value));
+                const filteredFormats = computed(() => filterItems(formats, searchQuery.value));
 
-    <hr class="divider" style="margin-top:20px;">
+                // --- GENERATION LOGIC ---
 
-    <button class="generate-btn" id="generateBtn" onclick="generatePrompt()">
-      プロンプトを最適化する
-    </button>
+                const generate = () => {
+                    let parts = [];
+                    
+                    // 1. Role
+                    let roleTxt = "";
+                    if (config.role === 'auto') {
+                        roleTxt = "あなたはユーザーの要望に対して、最も適した専門家として振る舞ってください。";
+                    } else {
+                        const allRoles = Object.values(roleData).flat();
+                        const r = allRoles.find(r => r.val === config.role) || { label: config.role };
+                        roleTxt = `あなたは世界トップクラスの「${r.label}」として振る舞ってください。`;
+                    }
+                    
+                    if (config.tone !== 'auto') {
+                        const t = tones.find(t => t.val === config.tone);
+                        roleTxt += `\nトーン＆マナーは「${t ? t.label : config.tone}」を維持してください。`;
+                    }
+                    parts.push(`# 役割・ペルソナ\n${roleTxt}`);
 
-    <div class="loading-bar" id="loadingBar"></div>
-    <div class="error-msg" id="errorMsg"></div>
-  </div>
+                    // 2. Input
+                    if (input.context) parts.push(`# 背景情報・コンテキスト\n${input.context}`);
+                    parts.push(`# 依頼内容 (タスク)\n${input.task || '(指示を入力してください)'}`);
 
-  <!-- API Key -->
-  <div class="card" style="padding:20px 32px; margin-bottom:20px;">
-    <div class="section-label">API KEY — OpenRouter APIキー（完全無料）</div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="password" class="opt-input" id="apiKeyInput" placeholder="sk-or-v1-..." style="flex:1;">
-      <button onclick="toggleKeyVisible()" id="toggleKeyBtn" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;color:var(--text-muted);font-size:11px;white-space:nowrap;font-family:Space Mono,monospace;">表示</button>
-      <button onclick="clearApiKey()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;color:var(--text-muted);font-size:11px;white-space:nowrap;font-family:Space Mono,monospace;">削除</button>
-    </div>
+                    // 3. Framework
+                    if (config.framework !== 'auto') {
+                        const f = frameworks.find(fw => fw.val === config.framework);
+                        parts.push(`# 思考フレームワーク\n回答を作成する際は「${f ? f.label : config.framework}」のフレームワークを使用してください。`);
+                    }
 
-    <!-- Sync URL box -->
-    <div id="syncBox" style="display:none;margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
-      <div style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--accent-gem);text-transform:uppercase;margin-bottom:8px;">✓ 保存済み — 全デバイス同期用URL</div>
-      <div style="font-size:11px;color:var(--text-muted);line-height:1.7;margin-bottom:10px;">
-        このURLをブックマーク・LINEで送るなど、どのデバイスから開いてもAPIキーが自動入力されます。
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="text" id="syncUrlDisplay" readonly style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Space Mono,monospace;font-size:10px;color:var(--text-muted);outline:none;overflow:hidden;text-overflow:ellipsis;">
-        <button onclick="copySyncUrl()" id="copySyncBtn" style="background:var(--accent-gem);border:none;border-radius:8px;padding:9px 14px;cursor:pointer;color:white;font-family:Space Mono,monospace;font-size:10px;white-space:nowrap;">コピー</button>
-      </div>
-    </div>
+                    // 4. Constraints
+                    let rules = [];
+                    if (constraints.no_apology) rules.push("「申し訳ありませんが」や「AIとして」といった前置きや謝罪は一切禁止です。");
+                    if (constraints.no_hallucination) rules.push("事実にないことを捏造しないでください。不明な場合は正直に「分からない」と答えてください。");
+                    if (constraints.step_reasoning) rules.push("結論の前に、ステップ・バイ・ステップで思考プロセスを示してください。");
+                    if (constraints.confidence) rules.push("回答の最後に、この回答に対する自信度（0〜100%）を記載してください。");
+                    if (constraints.critique) rules.push("回答の後に、自身の回答に対する批判的な分析（欠点や限界）を加えてください。");
+                    if (constraints.sources) rules.push("可能な限り、情報の出典や参考URLを明記してください。");
+                    if (constraints.web_search || config.model === 'manus') rules.push("必要に応じてWebブラウジングを行い、最新情報を検索・検証してください。");
+                    if (constraints.ask_questions) rules.push("依頼内容が曖昧な場合は、勝手に推測せず、ユーザーに追加の質問をしてください。");
+                    if (constraints.english_output) rules.push("回答はすべて英語で行ってください。");
+                    if (constraints.no_filler) rules.push("「はい、承知しました」などの無駄な会話文（フィラー）を省き、結果のみを出力してください。");
+                    if (constraints.bold_key) rules.push("重要な用語やポイントは**太字**で強調してください。");
+                    if (constraints.example_driven) rules.push("抽象的な説明だけでなく、具体的な事例を多用してください。");
+                    
+                    // Manus specifics
+                    if (config.model === 'manus') {
+                         rules.push("まず実行計画（プラン）を立て、それを順次実行してください。");
+                    }
 
-    <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-family:Space Mono,monospace;line-height:1.7;">
-      ※ <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-gem);">openrouter.ai/keys</a> で無料アカウント作成→APIキーを発行。クレカ不要・完全無料。キーはこのページ外に送信されません。
-    </div>
-  </div>
+                    if (config.format !== 'auto') {
+                        const fmt = formats.find(f => f.val === config.format);
+                        rules.push(`出力形式は厳密に「${fmt ? fmt.label : config.format}」に従ってください。`);
+                    }
 
-  <div class="output-card" id="outputCard">
-    <div class="output-header">
-      <div class="ai-badge gem" id="aiBadge">Gemini 向け</div>
-      <button class="copy-btn" onclick="copyOutput()">Copy</button>
-    </div>
-    <div class="output-text" id="outputText"></div>
-  </div>
-</div>
+                    if (rules.length) parts.push(`# 制約条件・ルール\n` + rules.map(r => `• ${r}`).join('\n'));
 
-<script>
-let selectedTarget = 'gemini';
-const chipSelections = { tone: '指定しない', format: '指定しない', length: '指定しない', think: '指定しない' };
+                    output.value = parts.join('\n\n');
+                };
 
-function selectTarget(target, el) {
-  selectedTarget = target;
-  document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  const btn = document.getElementById('generateBtn');
-  const cls = target === 'chatgpt' ? ' gpt-mode' : target === 'manus' ? ' manus-mode' : '';
-  btn.className = 'generate-btn' + cls;
-}
+                const toggleContext = () => showContext.value = !showContext.value;
+                const copy = async () => {
+                    if (!output.value) return;
+                    await navigator.clipboard.writeText(output.value);
+                    copied.value = true;
+                    setTimeout(() => copied.value = false, 2000);
+                };
 
-function toggleDetail() {
-  const toggle = document.getElementById('detailToggle');
-  const panel = document.getElementById('detailPanel');
-  toggle.classList.toggle('open');
-  panel.classList.toggle('open');
-}
-
-function selectChip(el, group) {
-  document.querySelectorAll(`#${group}Chips .chip`).forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  chipSelections[group] = el.dataset.val;
-}
-
-async function generatePrompt() {
-  const input = document.getElementById('inputPrompt').value.trim();
-  if (!input) { showError('プロンプトを入力してください。'); return; }
-
-  const btn       = document.getElementById('generateBtn');
-  const loadingBar = document.getElementById('loadingBar');
-  const outputCard = document.getElementById('outputCard');
-  const outputText = document.getElementById('outputText');
-  const aiBadge   = document.getElementById('aiBadge');
-  const errorMsg  = document.getElementById('errorMsg');
-
-  const useCase    = document.getElementById('useCaseSelect').value;
-  const lang       = document.getElementById('langSelect').value;
-  const role       = document.getElementById('roleInput').value.trim();
-  const audience   = document.getElementById('audienceInput').value.trim();
-  const constraint = document.getElementById('constraintInput').value.trim();
-  const context    = document.getElementById('contextInput').value.trim();
-  const example    = document.getElementById('exampleInput').value.trim();
-  const tone   = chipSelections.tone;
-  const format = chipSelections.format;
-  const length = chipSelections.length;
-  const think  = chipSelections.think;
-
-  errorMsg.classList.remove('visible');
-  btn.disabled = true;
-  loadingBar.classList.add('active');
-  outputCard.classList.remove('visible');
-
-  const targetName = { gemini: 'Gemini (Google)', chatgpt: 'ChatGPT (OpenAI)', manus: 'Manus (Manus AI)' }[selectedTarget];
-
-  const opts = [];
-  if (useCase)              opts.push(`【用途・目的】${useCase}`);
-  if (role)                 opts.push(`【AIの役割】${role}`);
-  if (audience)             opts.push(`【対象読者】${audience}`);
-  if (tone !== '指定しない')   opts.push(`【口調・トーン】${tone}`);
-  if (format !== '指定しない') opts.push(`【出力形式】${format}`);
-  if (length !== '指定しない') opts.push(`【出力の長さ】${length}`);
-  if (think !== '指定しない')  opts.push(`【思考スタイル】${think}`);
-  if (constraint)           opts.push(`【制約・禁止事項】${constraint}`);
-  if (context)              opts.push(`【背景・コンテキスト】${context}`);
-  if (example)              opts.push(`【期待する出力例】\n${example}`);
-  opts.push(`【出力言語】${lang}`);
-
-  const detailStr = '\n\n■ ユーザー指定のオプション（必ず反映すること）：\n' + opts.join('\n');
-
-  const baseInstructions = {
-    gemini: `あなたはGemini (Google AI) 向けの世界最高峰のプロンプトエンジニアです。
-Gemini最適化の核心：
-- 明確な構造（番号付きリスト、セクション分け）を積極的に使う
-- マルチステップの思考プロセスを明示的に指示する
-- 出力フォーマット（JSON、Markdown等）を明確に指定する
-- 「Google Grounding」機能を活かした最新情報取得の指示が使える
-- Gemini 2.0以降はDeep Research機能（長時間の調査）が使えるため、必要に応じて明示する
-- 客観的・分析的なタスクに特に強い`,
-    chatgpt: `あなたはChatGPT (OpenAI GPT-4o) 向けの世界最高峰のプロンプトエンジニアです。
-ChatGPT最適化の核心：
-- ロールプレイ設定（「あなたは〜です」）を冒頭に入れると出力品質が劇的に向上する
-- 「Step by Step」「Chain of Thought」などの思考誘導フレーズが非常に有効
-- Few-shot例（出力例）を含めると精度が大幅に上がる
-- 否定形の制約（「〜してはいけない」）も積極的に追加する
-- GPT-4oはツール使用（コード実行、Web検索、画像生成等）を明示できる
-- 「### 指示」「### 制約」などのMarkdownヘッダーで構造化すると精度向上`,
-    manus: `あなたはManus (Manus AI) 向けの世界最高峰のプロンプトエンジニアです。
-Manus最適化の核心：
-- Manusは自律エージェントAIなので、明確な「最終ゴール」を最初に1文で定義する
-- タスクを具体的なサブタスクに分解し、順序を明示する
-- 使用できるツール・リソース（ブラウザ操作、コード実行、ファイル読み書き、API呼び出し等）を列挙する
-- 成功条件（完了の定義）と失敗時の対処法を明記する
-- 「〜が完了したら次に〜を行う」という条件付き指示を使う
-- 出力物の形式（ファイル名・拡張子・保存場所）を具体的に指定する
-- エラー時の回復手順やフォールバックも記述できると良い`
-  };
-
-  const systemPrompt = baseInstructions[selectedTarget] + `
-
-重要：ユーザーが指定したオプションを漏れなく反映してください。
-最適化されたプロンプトのみを出力し、説明・前置き・コメント・マークダウンのコードブロック（\`\`\`）は一切不要です。そのまま対象AIに貼り付けられる形で出力してください。`;
-
-  const userMessage = `以下のプロンプトを${targetName}向けに最適化してください。${detailStr}
-
-■ 元のプロンプト：
-${input}`;
-
-  try {
-    const badgeLabels  = { gemini: 'Gemini 向け', chatgpt: 'ChatGPT 向け', manus: 'Manus 向け' };
-    const badgeClasses = { gemini: 'gem', chatgpt: 'gpt', manus: 'manus' };
-    aiBadge.textContent = badgeLabels[selectedTarget];
-    aiBadge.className = 'ai-badge ' + badgeClasses[selectedTarget];
-    outputCard.classList.add('visible');
-    outputText.textContent = '生成中';
-    let dots = 0;
-    const dotInterval = setInterval(() => {
-      dots = (dots + 1) % 4;
-      outputText.textContent = '生成中' + '.'.repeat(dots);
-    }, 400);
-
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
-    if (!apiKey) { clearInterval(dotInterval); throw new Error('APIキーを入力してください。'); }
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': window.location.href,
-        'X-Title': 'PromptForge'
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-4-maverick:free',
-        max_tokens: 8192,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ]
-      })
-    });
-
-    clearInterval(dotInterval);
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || `APIエラー: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content ?? '';
-    if (!text) throw new Error('レスポンスが空でした。もう一度お試しください。');
-    outputText.textContent = text;
-
-  } catch (err) {
-    showError(err.message || 'エラーが発生しました。もう一度お試しください。');
-    outputCard.classList.remove('visible');
-  } finally {
-    btn.disabled = false;
-    loadingBar.classList.remove('active');
-  }
-}
-
-// APIキー（埋め込み済み）
-const HARDCODED_API_KEY = 'sk-or-v1-44f67a';
-
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('apiKeyInput').value = HARDCODED_API_KEY;
-});
-
-function showError(msg) {
-  const el = document.getElementById('errorMsg');
-  el.textContent = msg; el.classList.add('visible');
-}
-
-function copyOutput() {
-  const text = document.getElementById('outputText').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    btn.textContent = 'Copied!';
-    btn.style.color = 'var(--accent-gem)';
-    btn.style.borderColor = 'var(--accent-gem)';
-    setTimeout(() => { btn.textContent = 'Copy'; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
-  });
-}
-
-document.getElementById('inputPrompt').addEventListener('keydown', e => {
-  if (e.ctrlKey && e.key === 'Enter') generatePrompt();
-});
-</script>
+                return {
+                    models, tabs, roleData, frameworks, tones, formats, tuningOptions,
+                    input, config, constraints, currentTab, searchQuery, output, copied, showContext, showMobileModelSelect,
+                    filteredRoles, filteredFrameworks, filteredTones, filteredFormats,
+                    toggleContext, generate, copy
+                };
+            }
+        }).mount('#app');
+    </script>
 </body>
 </html>
