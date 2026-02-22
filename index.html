@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptForge — AIプロンプト最適化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@300;400;500&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f3ef;
+    --surface: #ffffff;
+    --surface2: #f0ede8;
+    --border: #ddd9d2;
+    --accent-gem: #0a8a5c;
+    --accent-gpt: #d4470e;
+    --accent-manus: #6b35d4;
+    --text: #1a1814;
+    --text-muted: #8a8580;
+    --glow-gem: rgba(10,138,92,0.1);
+    --glow-gpt: rgba(212,71,14,0.1);
+    --glow-manus: rgba(107,53,212,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: radial-gradient(circle, rgba(10,138,92,0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; animation: drift 12s ease-in-out infinite alternate; }
+  .orb-1 { width: 500px; height: 500px; background: rgba(10,138,92,0.08); top: -150px; right: -150px; }
+  .orb-2 { width: 400px; height: 400px; background: rgba(212,71,14,0.07); bottom: -100px; left: -120px; animation-delay: -5s; }
+  @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(30px,20px) scale(1.1); } }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; position: relative; z-index: 1; }
+
+  header { text-align: center; margin-bottom: 48px; animation: fadeDown 0.7s ease both; }
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+  .logo {
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(48px, 9vw, 80px);
+    letter-spacing: 6px;
+    background: linear-gradient(135deg, var(--accent-gem) 0%, #0077aa 50%, var(--accent-gpt) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    line-height: 1; margin-bottom: 10px;
+  }
+  .tagline { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 4px; color: var(--text-muted); text-transform: uppercase; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    animation: fadeUp 0.6s ease 0.15s both;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 3px;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  textarea {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px; font-weight: 300; line-height: 1.7;
+    padding: 14px; resize: vertical; min-height: 120px;
+    transition: border-color 0.3s, box-shadow 0.3s; outline: none;
+  }
+  textarea::placeholder { color: var(--text-muted); }
+  textarea:focus { border-color: var(--accent-gem); box-shadow: 0 0 0 3px var(--glow-gem); }
+
+  .target-row { display: flex; gap: 10px; margin: 20px 0; }
+  .target-btn {
+    flex: 1; padding: 12px 8px; border-radius: 12px;
+    border: 2px solid var(--border); background: var(--surface2);
+    color: var(--text-muted); cursor: pointer;
+    font-family: 'Bebas Neue', cursive; font-size: 20px; letter-spacing: 3px;
+    transition: all 0.25s;
+  }
+  .target-btn .sub { display: block; font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 2px; margin-top: 2px; }
+  .target-btn.gem { --c: var(--accent-gem); --glow: var(--glow-gem); }
+  .target-btn.gpt { --c: var(--accent-gpt); --glow: var(--glow-gpt); }
+  .target-btn.manus { --c: var(--accent-manus); --glow: var(--glow-manus); }
+  .target-btn.active { border-color: var(--c); color: var(--c); box-shadow: 0 0 16px var(--glow), inset 0 0 16px var(--glow); background: white; }
+  .target-btn:hover:not(.active) { border-color: color-mix(in srgb, var(--c) 50%, transparent); color: color-mix(in srgb, var(--c) 70%, var(--text)); }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  .detail-toggle {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none;
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .detail-toggle:hover { color: var(--accent-gem); }
+  .toggle-arrow {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; transition: transform 0.3s, background 0.2s;
+    flex-shrink: 0;
+  }
+  .detail-toggle.open .toggle-arrow { transform: rotate(180deg); background: var(--accent-gem); color: white; border-color: var(--accent-gem); }
+
+  .detail-panel {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.45s ease, opacity 0.3s ease;
+    opacity: 0;
+  }
+  .detail-panel.open { max-height: 1400px; opacity: 1; }
+  .detail-inner { padding-top: 22px; display: flex; flex-direction: column; gap: 20px; }
+
+  .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 560px) { .option-grid { grid-template-columns: 1fr; } }
+
+  .option-group { display: flex; flex-direction: column; gap: 8px; }
+  .option-group.full { grid-column: 1 / -1; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 6px 12px; border-radius: 30px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text-muted); cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 12px; font-weight: 300;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--accent-gem); color: var(--accent-gem); }
+  .chip.active { border-color: var(--accent-gem); color: var(--accent-gem); background: var(--glow-gem); font-weight: 500; }
+
+  .opt-input {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px; font-weight: 300; padding: 10px 12px;
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .opt-input:focus { border-color: var(--accent-gem); box-shadow: 0 0 0 2px var(--glow-gem); }
+  .opt-input::placeholder { color: var(--text-muted); font-size: 12px; }
+  select.opt-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8580'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 30px; cursor: pointer;
+  }
+
+  .generate-btn {
+    width: 100%; padding: 17px; border-radius: 14px; border: none;
+    background: linear-gradient(135deg, var(--accent-gem), #0077aa);
+    color: #fff; font-family: 'Bebas Neue', cursive;
+    font-size: 20px; letter-spacing: 4px; cursor: pointer;
+    transition: all 0.3s; margin-top: 4px;
+  }
+  .generate-btn.gpt-mode { background: linear-gradient(135deg, var(--accent-gpt), #e07020); }
+  .generate-btn.manus-mode { background: linear-gradient(135deg, var(--accent-manus), #9b6be0); }
+  .generate-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(10,138,92,0.25); }
+  .generate-btn.gpt-mode:hover:not(:disabled) { box-shadow: 0 8px 30px rgba(212,71,14,0.25); }
+  .generate-btn.manus-mode:hover:not(:disabled) { box-shadow: 0 8px 30px rgba(107,53,212,0.25); }
+  .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .loading-bar {
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-gem), #0077aa, var(--accent-gem));
+    background-size: 200% 100%; border-radius: 2px; margin-top: 14px;
+    display: none; animation: shimmer 1.2s linear infinite;
+  }
+  .loading-bar.active { display: block; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  .error-msg {
+    background: rgba(255,80,80,0.1); border: 1px solid rgba(255,80,80,0.3);
+    border-radius: 10px; padding: 12px; color: #e05050;
+    font-size: 13px; margin-top: 12px; display: none;
+    font-family: 'Space Mono', monospace;
+  }
+  .error-msg.visible { display: block; }
+
+  .output-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px;
+    display: none; animation: fadeUp 0.5s ease both;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+  .output-card.visible { display: block; }
+  .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ai-badge { font-family: 'Bebas Neue', cursive; font-size: 15px; letter-spacing: 3px; padding: 5px 14px; border-radius: 30px; }
+  .ai-badge.gem { background: var(--glow-gem); color: var(--accent-gem); border: 1px solid var(--accent-gem); }
+  .ai-badge.gpt { background: var(--glow-gpt); color: var(--accent-gpt); border: 1px solid var(--accent-gpt); }
+  .ai-badge.manus { background: var(--glow-manus); color: var(--accent-manus); border: 1px solid var(--accent-manus); }
+  .copy-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 2px; padding: 7px 14px;
+    border-radius: 8px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+  }
+  .copy-btn:hover { border-color: var(--accent-gem); color: var(--accent-gem); }
+  .output-text {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; font-size: 14px;
+    line-height: 1.8; color: var(--text); white-space: pre-wrap; min-height: 100px;
+  }
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="container">
+  <header>
+    <div class="logo">PromptForge</div>
+    <div class="tagline">AI プロンプト最適化エンジン</div>
+  </header>
+
+  <div class="card">
+    <div class="section-label">INPUT — 元のプロンプト</div>
+    <textarea id="inputPrompt" placeholder="ここにプロンプトを入力してください。例：「Pythonで画像を圧縮するコードを書いて」など"></textarea>
+
+    <div class="section-label" style="margin-top:22px;">TARGET — 最適化先のAI</div>
+    <div class="target-row">
+      <button class="target-btn gem active" onclick="selectTarget('gemini', this)">
+        Gemini<span class="sub">Google AI</span>
+      </button>
+      <button class="target-btn gpt" onclick="selectTarget('chatgpt', this)">
+        ChatGPT<span class="sub">OpenAI</span>
+      </button>
+      <button class="target-btn manus" onclick="selectTarget('manus', this)">
+        Manus<span class="sub">Manus AI</span>
+      </button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="detail-toggle" id="detailToggle" onclick="toggleDetail()">
+      <div class="toggle-arrow">▼</div>
+      詳細設定 — トーン・形式・制約などを指定する
+    </div>
+
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-inner">
+
+        <div class="option-grid">
+          <div class="option-group">
+            <div class="section-label">用途・目的</div>
+            <select class="opt-input" id="useCaseSelect">
+              <option value="">指定しない</option>
+              <option value="コード生成・プログラミング">コード生成・プログラミング</option>
+              <option value="文章作成・ライティング">文章作成・ライティング</option>
+              <option value="分析・調査・リサーチ">分析・調査・リサーチ</option>
+              <option value="翻訳・言語処理">翻訳・言語処理</option>
+              <option value="アイデア出し・ブレスト">アイデア出し・ブレスト</option>
+              <option value="要約・整理">要約・整理</option>
+              <option value="画像生成プロンプト作成">画像生成プロンプト作成</option>
+              <option value="教育・解説">教育・解説</option>
+              <option value="ビジネス・業務">ビジネス・業務</option>
+              <option value="創作・フィクション">創作・フィクション</option>
+              <option value="データ分析・数値処理">データ分析・数値処理</option>
+              <option value="SEO・マーケティング">SEO・マーケティング</option>
+            </select>
+          </div>
+          <div class="option-group">
+            <div class="section-label">出力言語</div>
+            <select class="opt-input" id="langSelect">
+              <option value="日本語">日本語</option>
+              <option value="英語">英語</option>
+              <option value="日本語と英語の両方（バイリンガル）">日本語＋英語（バイリンガル）</option>
+              <option value="指定しない">指定しない（自動）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="option-group">
+          <div class="section-label">口調・トーン</div>
+          <div class="chip-row" id="toneChips">
+            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'tone')">指定しない</div>
+            <div class="chip" data-val="プロフェッショナル・丁寧" onclick="selectChip(this,'tone')">プロフェッショナル</div>
+            <div class="chip" data-val="カジュアル・親しみやすい" onclick="selectChip(this,'tone')">カジュアル</div>
+            <div class="chip" data-val="学術的・論理的" onclick="selectChip(this,'tone')">学術的</div>
+            <div class="chip" data-val="簡潔・要点のみ" onclick="selectChip(this,'tone')">簡潔</div>
+            <div class="chip" data-val="創造的・ユニーク" onclick="selectChip(this,'tone')">創造的</div>
+            <div class="chip" data-val="やさしく・初心者向け" onclick="selectChip(this,'tone')">初心者向け</div>
+            <div class="chip" data-val="厳格・批判的" onclick="selectChip(this,'tone')">厳格・批判的</div>
+          </div>
+        </div>
+
+        <div class="option-group">
+          <div class="section-label">出力形式</div>
+          <div class="chip-row" id="formatChips">
+            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'format')">指定しない</div>
+            <div class="chip" data-val="自由な文章形式" onclick="selectChip(this,'format')">自由な文章</div>
+            <div class="chip" data-val="箇条書き（•）" onclick="selectChip(this,'format')">箇条書き</div>
+            <div class="chip" data-val="番号付きリスト" onclick="selectChip(this,'format')">番号リスト</div>
+            <div class="chip" data-val="Markdown形式（見出し・太字・リスト活用）" onclick="selectChip(this,'format')">Markdown</div>
+            <div class="chip" data-val="JSON形式" onclick="selectChip(this,'format')">JSON</div>
+            <div class="chip" data-val="コードブロック付き" onclick="selectChip(this,'format')">コードブロック</div>
+            <div class="chip" data-val="表（テーブル）形式" onclick="selectChip(this,'format')">テーブル</div>
+            <div class="chip" data-val="Q&A形式" onclick="selectChip(this,'format')">Q&A形式</div>
+          </div>
+        </div>
+
+        <div class="option-group">
+          <div class="section-label">出力の長さ</div>
+          <div class="chip-row" id="lengthChips">
+            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'length')">指定しない</div>
+            <div class="chip" data-val="できるだけ短く・要点のみ（3文以内）" onclick="selectChip(this,'length')">短く簡潔</div>
+            <div class="chip" data-val="標準的な長さ（200〜400文字程度）" onclick="selectChip(this,'length')">標準</div>
+            <div class="chip" data-val="詳細・網羅的に（制限なし）" onclick="selectChip(this,'length')">詳細に</div>
+            <div class="chip" data-val="ステップごとに分けて詳しく説明" onclick="selectChip(this,'length')">ステップ解説</div>
+          </div>
+        </div>
+
+        <div class="option-group">
+          <div class="section-label">思考・推論スタイル</div>
+          <div class="chip-row" id="thinkChips">
+            <div class="chip active" data-val="指定しない" onclick="selectChip(this,'think')">指定しない</div>
+            <div class="chip" data-val="まず結論を述べてから理由を説明する（結論先行）" onclick="selectChip(this,'think')">結論先行</div>
+            <div class="chip" data-val="Step by Stepで順番に考える（Chain of Thought）" onclick="selectChip(this,'think')">Step by Step</div>
+            <div class="chip" data-val="複数の視点・観点から検討してから回答する" onclick="selectChip(this,'think')">多角的検討</div>
+            <div class="chip" data-val="具体的な例・事例を必ず含める" onclick="selectChip(this,'think')">事例を含む</div>
+            <div class="chip" data-val="メリット・デメリットを比較して提示する" onclick="selectChip(this,'think')">メリデメ比較</div>
+          </div>
+        </div>
+
+        <div class="option-grid">
+          <div class="option-group">
+            <div class="section-label">AIに演じさせる役割</div>
+            <input type="text" class="opt-input" id="roleInput" placeholder="例：シニアエンジニア、マーケター、医師">
+          </div>
+          <div class="option-group">
+            <div class="section-label">対象読者・ターゲット</div>
+            <input type="text" class="opt-input" id="audienceInput" placeholder="例：初心者、経営者、小学生">
+          </div>
+        </div>
+
+        <div class="option-group full">
+          <div class="section-label">制約・禁止事項</div>
+          <input type="text" class="opt-input" id="constraintInput" placeholder="例：専門用語を使わない、英語を含めない、箇条書きにしない">
+        </div>
+
+        <div class="option-group full">
+          <div class="section-label">背景情報・コンテキスト</div>
+          <input type="text" class="opt-input" id="contextInput" placeholder="例：Webアプリ開発プロジェクト向け、初回の顧客提案書として使う">
+        </div>
+
+        <div class="option-group full">
+          <div class="section-label">期待する出力例（Few-shot）</div>
+          <textarea class="opt-input" id="exampleInput" style="min-height:70px; resize:vertical;" placeholder="AIに期待する出力の例を書くと、精度が上がります。例：「出力例：1. はじめに〜」"></textarea>
+        </div>
+
+      </div>
+    </div>
+
+    <hr class="divider" style="margin-top:20px;">
+
+    <button class="generate-btn" id="generateBtn" onclick="generatePrompt()">
+      プロンプトを最適化する
+    </button>
+
+    <div class="loading-bar" id="loadingBar"></div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="output-card" id="outputCard">
+    <div class="output-header">
+      <div class="ai-badge gem" id="aiBadge">Gemini 向け</div>
+      <button class="copy-btn" onclick="copyOutput()">Copy</button>
+    </div>
+    <div class="output-text" id="outputText"></div>
+  </div>
+</div>
+
+<script>
+let selectedTarget = 'gemini';
+const chipSelections = { tone: '指定しない', format: '指定しない', length: '指定しない', think: '指定しない' };
+
+function selectTarget(target, el) {
+  selectedTarget = target;
+  document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const btn = document.getElementById('generateBtn');
+  const cls = target === 'chatgpt' ? ' gpt-mode' : target === 'manus' ? ' manus-mode' : '';
+  btn.className = 'generate-btn' + cls;
+}
+
+function toggleDetail() {
+  const toggle = document.getElementById('detailToggle');
+  const panel = document.getElementById('detailPanel');
+  toggle.classList.toggle('open');
+  panel.classList.toggle('open');
+}
+
+function selectChip(el, group) {
+  document.querySelectorAll(`#${group}Chips .chip`).forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  chipSelections[group] = el.dataset.val;
+}
+
+async function generatePrompt() {
+  const input = document.getElementById('inputPrompt').value.trim();
+  if (!input) { showError('プロンプトを入力してください。'); return; }
+
+  const btn       = document.getElementById('generateBtn');
+  const loadingBar = document.getElementById('loadingBar');
+  const outputCard = document.getElementById('outputCard');
+  const outputText = document.getElementById('outputText');
+  const aiBadge   = document.getElementById('aiBadge');
+  const errorMsg  = document.getElementById('errorMsg');
+
+  const useCase    = document.getElementById('useCaseSelect').value;
+  const lang       = document.getElementById('langSelect').value;
+  const role       = document.getElementById('roleInput').value.trim();
+  const audience   = document.getElementById('audienceInput').value.trim();
+  const constraint = document.getElementById('constraintInput').value.trim();
+  const context    = document.getElementById('contextInput').value.trim();
+  const example    = document.getElementById('exampleInput').value.trim();
+  const tone   = chipSelections.tone;
+  const format = chipSelections.format;
+  const length = chipSelections.length;
+  const think  = chipSelections.think;
+
+  errorMsg.classList.remove('visible');
+  btn.disabled = true;
+  loadingBar.classList.add('active');
+  outputCard.classList.remove('visible');
+
+  const targetName = { gemini: 'Gemini (Google)', chatgpt: 'ChatGPT (OpenAI)', manus: 'Manus (Manus AI)' }[selectedTarget];
+
+  const opts = [];
+  if (useCase)              opts.push(`【用途・目的】${useCase}`);
+  if (role)                 opts.push(`【AIの役割】${role}`);
+  if (audience)             opts.push(`【対象読者】${audience}`);
+  if (tone !== '指定しない')   opts.push(`【口調・トーン】${tone}`);
+  if (format !== '指定しない') opts.push(`【出力形式】${format}`);
+  if (length !== '指定しない') opts.push(`【出力の長さ】${length}`);
+  if (think !== '指定しない')  opts.push(`【思考スタイル】${think}`);
+  if (constraint)           opts.push(`【制約・禁止事項】${constraint}`);
+  if (context)              opts.push(`【背景・コンテキスト】${context}`);
+  if (example)              opts.push(`【期待する出力例】\n${example}`);
+  opts.push(`【出力言語】${lang}`);
+
+  const detailStr = '\n\n■ ユーザー指定のオプション（必ず反映すること）：\n' + opts.join('\n');
+
+  const baseInstructions = {
+    gemini: `あなたはGemini (Google AI) 向けの世界最高峰のプロンプトエンジニアです。
+Gemini最適化の核心：
+- 明確な構造（番号付きリスト、セクション分け）を積極的に使う
+- マルチステップの思考プロセスを明示的に指示する
+- 出力フォーマット（JSON、Markdown等）を明確に指定する
+- 「Google Grounding」機能を活かした最新情報取得の指示が使える
+- Gemini 2.0以降はDeep Research機能（長時間の調査）が使えるため、必要に応じて明示する
+- 客観的・分析的なタスクに特に強い`,
+    chatgpt: `あなたはChatGPT (OpenAI GPT-4o) 向けの世界最高峰のプロンプトエンジニアです。
+ChatGPT最適化の核心：
+- ロールプレイ設定（「あなたは〜です」）を冒頭に入れると出力品質が劇的に向上する
+- 「Step by Step」「Chain of Thought」などの思考誘導フレーズが非常に有効
+- Few-shot例（出力例）を含めると精度が大幅に上がる
+- 否定形の制約（「〜してはいけない」）も積極的に追加する
+- GPT-4oはツール使用（コード実行、Web検索、画像生成等）を明示できる
+- 「### 指示」「### 制約」などのMarkdownヘッダーで構造化すると精度向上`,
+    manus: `あなたはManus (Manus AI) 向けの世界最高峰のプロンプトエンジニアです。
+Manus最適化の核心：
+- Manusは自律エージェントAIなので、明確な「最終ゴール」を最初に1文で定義する
+- タスクを具体的なサブタスクに分解し、順序を明示する
+- 使用できるツール・リソース（ブラウザ操作、コード実行、ファイル読み書き、API呼び出し等）を列挙する
+- 成功条件（完了の定義）と失敗時の対処法を明記する
+- 「〜が完了したら次に〜を行う」という条件付き指示を使う
+- 出力物の形式（ファイル名・拡張子・保存場所）を具体的に指定する
+- エラー時の回復手順やフォールバックも記述できると良い`
+  };
+
+  const systemPrompt = baseInstructions[selectedTarget] + `
+
+重要：ユーザーが指定したオプションを漏れなく反映してください。
+最適化されたプロンプトのみを出力し、説明・前置き・コメント・マークダウンのコードブロック（\`\`\`）は一切不要です。そのまま対象AIに貼り付けられる形で出力してください。`;
+
+  const userMessage = `以下のプロンプトを${targetName}向けに最適化してください。${detailStr}
+
+■ 元のプロンプト：
+${input}`;
+
+  try {
+    const badgeLabels  = { gemini: 'Gemini 向け', chatgpt: 'ChatGPT 向け', manus: 'Manus 向け' };
+    const badgeClasses = { gemini: 'gem', chatgpt: 'gpt', manus: 'manus' };
+    aiBadge.textContent = badgeLabels[selectedTarget];
+    aiBadge.className = 'ai-badge ' + badgeClasses[selectedTarget];
+    outputCard.classList.add('visible');
+    outputText.textContent = '生成中';
+    let dots = 0;
+    const dotInterval = setInterval(() => {
+      dots = (dots + 1) % 4;
+      outputText.textContent = '生成中' + '.'.repeat(dots);
+    }, 400);
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8192,
+        stream: false,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }]
+      })
+    });
+
+    clearInterval(dotInterval);
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || `APIエラー: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data?.content?.filter(b => b.type === 'text')?.map(b => b.text)?.join('') ?? '';
+    if (!text) throw new Error('レスポンスが空でした。もう一度お試しください。');
+    outputText.textContent = text;
+
+  } catch (err) {
+    showError(err.message || 'エラーが発生しました。もう一度お試しください。');
+    outputCard.classList.remove('visible');
+  } finally {
+    btn.disabled = false;
+    loadingBar.classList.remove('active');
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg; el.classList.add('visible');
+}
+
+function copyOutput() {
+  const text = document.getElementById('outputText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--accent-gem)';
+    btn.style.borderColor = 'var(--accent-gem)';
+    setTimeout(() => { btn.textContent = 'Copy'; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+  });
+}
+
+document.getElementById('inputPrompt').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') generatePrompt();
+});
+</script>
+</body>
+</html>
